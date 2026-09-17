@@ -45,6 +45,39 @@ class ProductSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
 
+    def validate_category(self, category):
+        if category is None:
+            return category
+
+        request = self.context.get('request')
+
+        if request and category.business != request.user.business:
+            raise serializers.ValidationError(
+                'La categoría no pertenece a tu negocio.'
+            )
+
+        return category
+
+    def validate_tags(self, tags):
+        request = self.context.get('request')
+
+        if request:
+            for tag in tags:
+                if tag.business != request.user.business:
+                    raise serializers.ValidationError(
+                        'Una o más etiquetas no pertenecen a tu negocio.'
+                    )
+
+        return tags
+
+    def validate_product_type(self, value):
+        if value != 'simple':
+            raise serializers.ValidationError(
+                'Actualmente solo se admite el tipo de producto simple.'
+            )
+
+        return value
+
     def create(self, validated_data):
         tags = validated_data.pop('tags', [])
 
@@ -57,3 +90,16 @@ class ProductSerializer(serializers.ModelSerializer):
             )
 
         return product
+
+    def update(self, instance, validated_data):
+        tags = validated_data.pop('tags', None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        instance.save()
+
+        if tags is not None:
+            instance.tags.set(tags)
+
+        return instance
